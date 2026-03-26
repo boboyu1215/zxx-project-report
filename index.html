@@ -2002,7 +2002,14 @@ function seed(){
 }
 
 function sc(s){return s==='r'?'r':s==='y'?'y':'g'}
-function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+// esc：安全转义，兼容非字符串类型（数组、对象等历史数据）
+function esc(s){
+  if(s===null||s===undefined) return '';
+  if(Array.isArray(s)) s=s.map(item=>typeof item==='object'&&item!==null?(item.text||JSON.stringify(item)):String(item)).filter(Boolean).join(', ');
+  else if(typeof s==='object') s=JSON.stringify(s);
+  else s=String(s);
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 // 兼容数组格式的 coreAction 显示（[{text,dueDate}] → 换行分隔字符串）
 function escAction(ca){
   if(!ca) return '';
