@@ -2003,6 +2003,13 @@ function seed(){
 
 function sc(s){return s==='r'?'r':s==='y'?'y':'g'}
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+// 兼容数组格式的 coreAction 显示（[{text,dueDate}] → 换行分隔字符串）
+function escAction(ca){
+  if(!ca) return '';
+  if(Array.isArray(ca)) return esc(ca.map(item=>typeof item==='object'?(item.text||''):String(item)).filter(s=>s.trim()).join('
+'));
+  return esc(String(ca));
+}
 function blankProj(){return{name:'',area:'',startDate:'',schemeDate:'',designDate:'',siteDate:'',completionDate:'',openDate:'',prepOwner:'',designOwner:'',defStatus:'g',defStage:0}}
 function blankWkForm(pid){return getSnap(S.yr,S.wk,pid,LP())}
 
@@ -2083,7 +2090,7 @@ function renderWeekCard(p,now,isArch){
     <div class="stages" style="margin-bottom:9px">${segs}</div>
     <div class="dims">
       <div class="dim d1"><div class="dim-hd" style="color:#2563a8">上周工作完成情况</div><div class="dim-body" style="color:var(--t2);white-space:pre-wrap">${esc(p.coreOutput)||'—'}</div></div>
-      <div class="dim d2"><div class="dim-hd">本周计划</div><div class="dim-body" style="white-space:pre-wrap">${esc(p.coreAction)||'—'}</div></div>
+      <div class="dim d2"><div class="dim-hd">本周计划</div><div class="dim-body" style="white-space:pre-wrap">${escAction(p.coreAction)||'—'}</div></div>
       <div class="dim d3"><div class="dim-hd" style="color:#b00020">风险 / 卡点</div><div class="dim-body" style="color:#b00020;white-space:pre-wrap">${esc(p.risk)||'—'}</div></div>
       <div class="dim d4"><div class="dim-hd" style="color:#2563a8">跨部门支援</div><div class="dim-body" style="white-space:pre-wrap">${esc(p.crossDept)||'本周无需跨部门支援'}</div></div>
     </div>
@@ -2251,7 +2258,7 @@ function renderCharts(){
       ${snaps.map((p,idx)=>`<div class="ai">
         <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--gl);color:var(--gold);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">${idx+1}</div>
         <div><div class="badge ${sc(p.status)}" style="font-size:10px;margin-bottom:3px">${esc(p.name.length>8?p.name.slice(0,8)+'…':p.name)}</div></div>
-        <div class="at">${esc(p.coreAction||p.next)||'—'}</div>
+        <div class="at">${escAction(p.coreAction||p.next)||'—'}</div>
       </div>`).join('')}
       ${!snaps.length?`<div class="empty">暂无数据</div>`:''}
     </div>
@@ -2629,7 +2636,7 @@ function renderWkForm(){
     <div class="fc-sub d2">维度二：本周计划</div>
     <div class="fg full">
       <div class="ff"><label>本周必须完成的关键事项</label>
-        <textarea class="auto-h" placeholder="例：完成深化方案并提交大区" oninput="UW('coreAction',this.value);autoH(this)">${esc(f.coreAction)}</textarea>
+        <textarea class="auto-h" placeholder="例：完成深化方案并提交大区" oninput="UW('coreAction',this.value);autoH(this)">${escAction(f.coreAction)}</textarea>
       </div>
     </div>
 
@@ -2709,8 +2716,15 @@ function _tbSetStatus(owner, projId, taskIdx, status, dueDate){
 }
 
 // ── 解析本周计划（coreAction 按换行/分号/顿号拆分成事项数组）──
+// 兼容两种格式：数组格式 [{text, dueDate}]（云端存储格式）和字符串格式（旧格式）
 function _tbParseTasks(coreAction){
-  if(!coreAction || !coreAction.trim()) return [];
+  if(!coreAction) return [];
+  // 数组格式（周报系统云端存储格式：[{text, dueDate}]）
+  if(Array.isArray(coreAction)){
+    return coreAction.map(item => typeof item === 'object' ? (item.text || '') : String(item)).filter(s => s.trim().length > 0);
+  }
+  // 字符串格式（旧格式，换行/分号/顿号分隔）
+  if(typeof coreAction !== 'string' || !coreAction.trim()) return [];
   return coreAction
     .replace(/\r/g,'')
     .split('\n')
@@ -2753,7 +2767,10 @@ function _tbGetOwners(projects, yr, wk){
   const owners = new Set();
   projects.filter(p => !p.archived).forEach(proj => {
     const snap = getSnap(yr, wk, proj.id, projects);
-    if(proj.designOwner && snap.coreAction && snap.coreAction.trim()){
+    const hasAction = Array.isArray(snap.coreAction)
+      ? snap.coreAction.length > 0
+      : (snap.coreAction && snap.coreAction.trim());
+    if(proj.designOwner && hasAction){
       owners.add(proj.designOwner);
     }
   });
@@ -3086,9 +3103,9 @@ window._tbSubmit = async function(owner){
       const existTasks = _tbParseTasks(existSnap.coreAction);
       const carryLine  = `【顺延${item.dueDate?'·预计'+item.dueDate:''}】${item.task}`;
       if(!existTasks.includes(carryLine)){
-        existSnap.coreAction = existTasks.length
-          ? existTasks.join('\n') + '\n' + carryLine
-          : carryLine;
+        // 保持数组格式写回（与周报系统云端存储格式 [{text, dueDate}] 一致）
+        const newTasks = [...existTasks, carryLine];
+        existSnap.coreAction = newTasks.map(t => ({ text: t, dueDate: '' }));
         setSnap(nyr, nwk, item.proj.id, existSnap);
       }
     });
