@@ -250,7 +250,8 @@ body{font-family:var(--fn);font-size:14px;color:var(--tx);background:var(--bg);m
     text-justify:inter-ideograph;
   }
   .ali .ai .at{
-    text-indent:2em;
+    text-indent:0;
+    text-align:left;
   }
   .tlw .tlr{
     text-align:justify;
@@ -1971,10 +1972,37 @@ function wkRange(yr,wk){
 }
 function getSnap(yr,wk,pid,projects){
   const weeks=LW(),k=wkKey(yr,wk);
+  // 该周已有实际快照，直接返回
   if(weeks[k]&&weeks[k][pid]!==undefined)return weeks[k][pid];
+
+  // 判断是否为未来周（超过当前周）
+  const isFuture = yr > CYR || (yr === CYR && wk > CWK);
+
+  // 向前追溯最近一次快照
   const sorted=Object.keys(weeks).filter(x=>x<=k).sort();
-  for(let i=sorted.length-1;i>=0;i--)
-    if(weeks[sorted[i]]&&weeks[sorted[i]][pid]!==undefined)return{...weeks[sorted[i]][pid]};
+  for(let i=sorted.length-1;i>=0;i--){
+    if(weeks[sorted[i]]&&weeks[sorted[i]][pid]!==undefined){
+      const prev={...weeks[sorted[i]][pid]};
+      if(!isFuture) return prev; // 历史/当前周：直接返回追溯值
+      // 未来周：只保留【顺延】标记的 coreAction 条目，其他内容字段清空
+      const prevCA = prev.coreAction;
+      let carryActions = [];
+      if(Array.isArray(prevCA)){
+        carryActions = prevCA.filter(item=>{
+          const t = typeof item==='object'?(item.text||''):String(item);
+          return t.includes('【顺延');
+        });
+      } else if(typeof prevCA==='string' && prevCA){
+        carryActions = prevCA.split('\n').filter(l=>l.includes('【顺延')).join('\n');
+        carryActions = carryActions ? carryActions : [];
+      }
+      return {
+        status: prev.status||'g', stage: prev.stage||0,
+        risk:'', decision:'无', coreOutput:'', crossDept:'', next:'', incident:'', knowledge:'',
+        coreAction: Array.isArray(carryActions) ? carryActions : (carryActions||[])
+      };
+    }
+  }
   const p=projects.find(x=>x.id===pid);
   return p?{status:p.defStatus||'g',stage:p.defStage||0,risk:'',next:'',decision:'无',
     coreOutput:'',coreAction:'',incident:'',crossDept:'',knowledge:''}:
@@ -2015,6 +2043,30 @@ function escAction(ca){
   if(!ca) return '';
   if(Array.isArray(ca)) return esc(ca.map(item=>typeof item==='object'?(item.text||''):String(item)).filter(s=>s.trim()).join('\n'));
   return esc(String(ca));
+}
+// 本周行动汇总专用：每条后附带 dueDate（月/日），以 HTML 行形式返回
+function escActionLines(ca){
+  if(!ca) return '<span style="color:var(--t3)">—</span>';
+  let items=[];
+  if(Array.isArray(ca)){
+    items=ca.map(item=>typeof item==='object'?{text:(item.text||''),dueDate:(item.dueDate||'')}:{text:String(item),dueDate:''}).filter(i=>i.text.trim());
+  } else if(typeof ca==='string'&&ca.trim()){
+    items=ca.split('\n').filter(l=>l.trim()).map(l=>({text:l.trim(),dueDate:''}));
+  }
+  if(!items.length) return '<span style="color:var(--t3)">—</span>';
+  return items.map(({text,dueDate})=>{
+    let dateStr='';
+    if(dueDate){
+      try{
+        const d=new Date(dueDate.replace(/\//g,'-'));
+        if(!isNaN(d.getTime())) dateStr=(d.getMonth()+1)+'/'+(d.getDate());
+      }catch(e){}
+    }
+    return`<div style="display:flex;align-items:baseline;gap:6px;text-align:left;padding:2px 0">
+      <span style="flex:1;word-break:break-all">${esc(text)}</span>
+      ${dateStr?`<span style="flex-shrink:0;font-size:10px;color:var(--t3);background:var(--bg);border-radius:3px;padding:1px 5px;white-space:nowrap">${esc(dateStr)}</span>`:''}
+    </div>`;
+  }).join('');
 }
 function blankProj(){return{name:'',area:'',startDate:'',schemeDate:'',designDate:'',siteDate:'',completionDate:'',openDate:'',prepOwner:'',designOwner:'',defStatus:'g',defStage:0}}
 function blankWkForm(pid){return getSnap(S.yr,S.wk,pid,LP())}
@@ -2105,7 +2157,7 @@ function renderWeekCard(p,now,isArch){
       ${isDirector()?`<button class="bs" style="font-size:11px;padding:4px 9px" onclick="editProj(${p.id})">编辑项目</button>`:''}
       <button class="bp" style="font-size:11px;padding:4px 12px;background:var(--gold)" onclick="askSubmitProject(${p.id})">📤 提交</button>
       ${isDirector()&&isNow()?`<button class="ba" onclick="askArch(${p.id})">归档</button>`:''}
-      ${isDirector()&&isNow()?`<button class="bd" onclick="askDel(${p.id})">删除</button>`:''}
+      ${isDirector()&&isNow()&&p.archived?`<button class="bd" onclick="askDel(${p.id})">删除</button>`:''}
     </div>`:!canEdit?`<div class="ca" style="justify-content:flex-end">
       <span style="font-size:11px;color:var(--t3)">此项目由 ${esc(p.prepOwner||p.designOwner||'其他人')} 负责</span>
     </div>`:''}
@@ -2130,7 +2182,7 @@ function renderOverview(){
       ${isNow()?`<div class="io-bar no-print" style="justify-content:flex-end;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)">
         <button class="io-btn" onclick="submitProjectInfo(${p.id})">☁ 项目提交</button>
         <button class="bs" style="font-size:11px;padding:4px 9px" onclick="editProj(${p.id})">编辑项目信息</button>
-        ${isDirector()?`<button class="bd" style="font-size:11px;padding:4px 9px" onclick="askDel(${p.id})">删除</button>`:''}
+        ${isDirector()&&p.archived?`<button class="bd" style="font-size:11px;padding:4px 9px" onclick="askDel(${p.id})">删除</button>`:''}
       </div>`:''}
     </div>`;
   };
@@ -2264,7 +2316,7 @@ function renderCharts(){
       ${snaps.map((p,idx)=>`<div class="ai">
         <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--gl);color:var(--gold);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">${idx+1}</div>
         <div><div class="badge ${sc(p.status)}" style="font-size:10px;margin-bottom:3px">${esc(p.name.length>8?p.name.slice(0,8)+'…':p.name)}</div></div>
-        <div class="at">${escAction(p.coreAction||p.next)||'—'}</div>
+        <div class="at" style="text-align:left;flex:1">${escActionLines(p.coreAction||p.next)}</div>
       </div>`).join('')}
       ${!snaps.length?`<div class="empty">暂无数据</div>`:''}
     </div>
