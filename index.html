@@ -2006,8 +2006,7 @@ function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 // 兼容数组格式的 coreAction 显示（[{text,dueDate}] → 换行分隔字符串）
 function escAction(ca){
   if(!ca) return '';
-  if(Array.isArray(ca)) return esc(ca.map(item=>typeof item==='object'?(item.text||''):String(item)).filter(s=>s.trim()).join('
-'));
+  if(Array.isArray(ca)) return esc(ca.map(item=>typeof item==='object'?(item.text||''):String(item)).filter(s=>s.trim()).join('\n'));
   return esc(String(ca));
 }
 function blankProj(){return{name:'',area:'',startDate:'',schemeDate:'',designDate:'',siteDate:'',completionDate:'',openDate:'',prepOwner:'',designOwner:'',defStatus:'g',defStage:0}}
