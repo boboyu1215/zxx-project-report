@@ -3159,16 +3159,26 @@ function renderUsersPage(){
 
 function render(){
   let html='';
-  if(S.tab==='weekly')html=renderWeekly();
-  else if(S.tab==='charts')html=renderCharts();
-  else if(S.tab==='input')html=renderProjForm();
-  else if(S.tab==='overview')html=renderOverview();
-  else if(S.tab==='meeting')html=renderMeeting();
-  else if(S.tab==='archive')html=renderArchive();
-  else if(S.tab==='history')html=renderHistory();
-  else if(S.tab==='wkinput')html=renderWkForm();
-  else if(S.tab==='taskboard')html=renderTaskboard();
-  else if(S.tab==='users')html=renderUsersPage();
+  try{
+    if(S.tab==='weekly')html=renderWeekly();
+    else if(S.tab==='charts')html=renderCharts();
+    else if(S.tab==='input')html=renderProjForm();
+    else if(S.tab==='overview')html=renderOverview();
+    else if(S.tab==='meeting')html=renderMeeting();
+    else if(S.tab==='archive')html=renderArchive();
+    else if(S.tab==='history')html=renderHistory();
+    else if(S.tab==='wkinput')html=renderWkForm();
+    else if(S.tab==='taskboard')html=renderTaskboard();
+    else if(S.tab==='users')html=renderUsersPage();
+  }catch(e){
+    console.error('[render] 渲染异常 tab='+S.tab, e);
+    html=`<div style="margin:40px auto;max-width:600px;background:#fff0f0;border:1px solid #f5c0c0;border-radius:12px;padding:24px 28px">
+      <div style="font-size:15px;font-weight:700;color:#b00020;margin-bottom:10px">⚠️ 页面渲染出错</div>
+      <div style="font-size:12px;color:#555;margin-bottom:8px">当前页面：<code>${S.tab}</code></div>
+      <div style="font-size:12px;color:#b00020;font-family:monospace;background:#fff8f8;padding:10px;border-radius:6px;word-break:break-all">${esc(e&&e.message||String(e))}</div>
+      <div style="font-size:11px;color:#888;margin-top:10px">请截图此信息并反馈给开发者，或尝试刷新页面。</div>
+    </div>`;
+  }
   document.getElementById('content').innerHTML=html;
   const TABS=['weekly','charts','input','overview','meeting','archive','history','taskboard'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',TABS[i]===S.tab||(S.tab==='wkinput'&&TABS[i]==='weekly')));
