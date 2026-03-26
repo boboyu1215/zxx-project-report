@@ -1382,8 +1382,25 @@ async function _startRealtime(){
         }
       });
 
-    _cbWatchers = [w1, w2, w3];
-    _log('[Realtime] ✅ 实时监听已建立（3个集合），停止轮询');
+    // ── 监听 taskboard_scores 文档（周计划评分数据）──
+    const w4 = db.collection('weeklydata')
+      .where({ _id: db.command.eq('taskboard_scores') })
+      .watch({
+        onChange: async (snapshot) => {
+          if(snapshot && snapshot.docChanges && snapshot.docChanges.length > 0){
+            _log('[Realtime] taskboard_scores 变化');
+            await _tbLoadFromCloud();
+            if(S.tab === 'taskboard') render();
+          }
+        },
+        onError: (err) => {
+          _warn('[Realtime] taskboard watcher error:', err);
+          _handleRealtimeError();
+        }
+      });
+
+    _cbWatchers = [w1, w2, w3, w4];
+    _log('[Realtime] ✅ 实时监听已建立（4个集合），停止轮询');
     return true;
   }catch(e){
     _warn('[Realtime] 初始化失败:', e.message, '→ 降级到轮询');
@@ -3571,18 +3588,10 @@ initStorage(async ()=>{
         _log('[Init] loading-overlay 已移除, 调用 ensureUser...');
         ensureUser(async ()=>{
           updateUserBadge(); renderActivityBar(); render();
-          // 云端连接后拉取 taskboard 评分数据
+          // 云端连接后拉取 taskboard 评分数据（实时监听 w4 会持续同步后续变化）
           if(_syncOk){
             await _tbLoadFromCloud();
             if(S.tab === 'taskboard') render();
-            // 启动30秒轮询（检测他人评分更新）
-            setInterval(async () => {
-              if(!_syncOk) return;
-              try{
-                await _tbLoadFromCloud();
-                if(S.tab === 'taskboard') render();
-              }catch(e){}
-            }, 30000);
           }
         });
       },280);
@@ -3593,10 +3602,6 @@ initStorage(async ()=>{
         if(_syncOk){
           await _tbLoadFromCloud();
           if(S.tab === 'taskboard') render();
-          setInterval(async () => {
-            if(!_syncOk) return;
-            try{ await _tbLoadFromCloud(); if(S.tab === 'taskboard') render(); }catch(e){}
-          }, 30000);
         }
       });
     }
