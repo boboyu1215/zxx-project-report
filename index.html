@@ -593,8 +593,8 @@ const PROXY_URL = 'https://ycb-zb-0g7962fmca5676a3-1255322631.ap-shanghai.app.tc
 
 // 调试模式开关：生产环境保持 false，本地调试改为 true 可看到所有日志
 const DEBUG = false;
-const _log  = (...a) => DEBUG && _log(...a);
-const _warn = (...a) => DEBUG && _warn(...a);
+const _log  = (...a) => DEBUG && console.log(...a);
+const _warn = (...a) => DEBUG && console.warn(...a);
 // console.error 始终保留（真正的运行时错误）
 // CloudBase 环境 ID（用于实时监听 WebSocket，无需 VPN）
 const ENV_ID = 'ycb-zb-0g7962fmca5676a3';
